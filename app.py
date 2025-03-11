@@ -1,67 +1,39 @@
-# from mistralai import Mistral
-# import streamlit as st
-
-# st.title("GPT interface for RAG-EAU")
-
-# client = Mistral(api_key=st.secrets["MISTRAL_API_KEY"])
-
-# if "mistral_model" not in st.session_state:
-#     st.session_state["mistral_model"] = "mistral-large-latest"
-
-# if "messages" not in st.session_state:
-#     st.session_state.messages = []
-
-# for message in st.session_state.messages:
-#     with st.chat_message(message["role"]):
-#         st.markdown(message["content"])
-
-# if prompt := st.chat_input("What is up?"):
-#     st.session_state.messages.append({"role": "user", "content": prompt})
-#     with st.chat_message("user"):
-#         st.markdown(prompt)
-
-#     with st.chat_message("assistant"):
-#         stream = client.chat.complete(
-#             model=st.session_state["mistral_model"],
-#             messages=[
-#                 {"role": m["role"], "content": m["content"]}
-#                 for m in st.session_state.messages
-#             ],
-#             stream=True,
-#         )
-#         response = st.write_stream(stream)
-#     st.session_state.messages.append({"role": "assistant", "content": response})
-
-from openai import OpenAI
 import streamlit as st
+from mistralai import Mistral, UserMessage
 
-st.title("ChatGPT-like clone")
+st.title("Mistral Chatbot")
 
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# Initialize Mistral client
+client = Mistral(api_key=st.secrets["MISTRAL_API_KEY"])
 
-if "openai_model" not in st.session_state:
-    st.session_state["openai_model"] = "gpt-3.5-turbo"
+# Set default model
+if "mistral_model" not in st.session_state:
+    st.session_state["mistral_model"] = "mistral-large-latest"
 
+# Store chat messages
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# Display chat history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-if prompt := st.chat_input("What is up?"):
+# User input
+if prompt := st.chat_input("Ask me something!"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+    # Call Mistral API
     with st.chat_message("assistant"):
-        stream = client.chat.completions.create(
-            model=st.session_state["openai_model"],
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
+        response = client.chat.complete(
+            model=st.session_state["mistral_model"],
+            messages=messages
         )
-        response = st.write_stream(stream)
-    st.session_state.messages.append({"role": "assistant", "content": response})
+        assistant_reply = response.choices[0].message.content
+        st.markdown(assistant_reply)
+
+    # Store assistant response
+    st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
