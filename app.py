@@ -1,5 +1,6 @@
 import streamlit as st
 from mistralai import Mistral, UserMessage
+import time
 
 st.title("Mistral Chatbot")
 
@@ -27,13 +28,21 @@ if prompt := st.chat_input("Ask me something!"):
 
     messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
     # Call Mistral API
-    with st.chat_message("assistant"):
-        response = client.chat.complete(
-            model=st.session_state["mistral_model"],
-            messages=messages
-        )
-        assistant_reply = response.choices[0].message.content
-        st.markdown(assistant_reply)
 
-    # Store assistant response
-    st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
+
+    with st.chat_message("assistant"):
+        stream_response = client.chat.stream(
+            model=st.session_state["mistral_model"],
+            messages=messages,
+        )
+        full_response = ""
+        placeholder = st.empty()  # Crée un espace réservé pour la réponse
+        for chunk in stream_response:
+            content = chunk.data.choices[0].delta.content
+            if content:
+                full_response += content
+                placeholder.markdown(full_response + "▌", unsafe_allow_html=True)  # Affiche la réponse partielle
+                time.sleep(0.05)  # Petite pause pour rendre l'affichage plus naturel
+        placeholder.markdown(full_response, unsafe_allow_html=True)  # Affiche la réponse complète
+
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
