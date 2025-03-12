@@ -45,7 +45,7 @@ if prompt := st.chat_input("Ask me something!"):
     # Call Mistral API
 
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="images/logoRageau.jpg"):
         stream_response = client.chat.stream(
             model=st.session_state["mistral_model"],
             messages=messages,
