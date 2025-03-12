@@ -1,5 +1,13 @@
-import streamlit as st
+from typing import List, Dict, Any
+
 from mistralai import Mistral, UserMessage
+import psycopg2
+import streamlit as st
+
+from utils import retrieve_context, vectorize_query
+
+db_connection_string = st.secrets['SUPABASE_PG_URL']
+conn = psycopg2.connect(db_connection_string)
 
 st.title("Mistral Chatbot")
 
@@ -19,9 +27,14 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+
 # User input
 if prompt := st.chat_input("Ask me something!"):
     st.session_state.messages.append({"role": "user", "content": prompt})
+
+    input_vector = vectorize_query(prompt, client)
+    context = retrieve_context(conn, input_vector)
+
     with st.chat_message("user"):
         st.markdown(prompt)
 
