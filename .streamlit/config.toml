@@ -1,0 +1,12 @@
+[theme]
+primaryColor = "#FF4B4B"  # Couleur principale, à adapter selon vos préférences
+backgroundColor = "#0E1117"  # Couleur de fond, à adapter
+secondaryBackgroundColor = "#262730"  # Couleur secondaire
+textColor = "#FAFAFA"  # Couleur du texte
+
+[browser]
+gatherUsageStats = false
+
+[ui]
+# Chemin vers votre logo
+favicon = "images/logoRageau.jpg"  # Favicon dans l'onglet du navigateur
