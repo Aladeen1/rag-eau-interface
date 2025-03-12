@@ -33,18 +33,13 @@ def retrieve_context(connection, query_vector: List[float], limit: int = 5) -> L
     vector_str = "[" + ",".join(str(x) for x in query_vector) + "]"
     
     cursor.execute(
-        "SELECT id, id_doc, content, similarity FROM match_mvp_docs(%s::vector(1024), %s)",
-        (vector_str, 5)
+        "SELECT content FROM match_mvp_docs(%s::vector(1024), %s)",
+        (vector_str, limit)
     )
     
     results = []
     for row in cursor.fetchall():
-        results.append({
-            "id": row[0],
-            "id_doc": row[1],
-            "content": row[2],
-            "similarity": row[3]
-        })
+        results.append({"content": row[0]})
     
     cursor.close()
     return results

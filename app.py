@@ -33,12 +33,14 @@ if prompt := st.chat_input("Ask me something!"):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     input_vector = vectorize_query(prompt, client)
-    context = retrieve_context(conn, input_vector)
+    context = retrieve_context(conn, input_vector, 3)
 
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+    system_message = {"role": "system", "content": f"Context: {context}"}
+    messages = [system_message] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+
     # Call Mistral API
     with st.chat_message("assistant"):
         response = client.chat.complete(
