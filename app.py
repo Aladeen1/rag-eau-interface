@@ -12,6 +12,8 @@ conn = psycopg2.connect(db_connection_string)
 
 st.title("Le Ragueauteur")
 
+st.text("Le Rageauteur vous permet de poser n'importe quelle question en lien avec le système de gestion des données des eaux souterraines.")
+
 # Initialize Mistral client
 client = Mistral(api_key=st.secrets["MISTRAL_API_KEY"])
 
