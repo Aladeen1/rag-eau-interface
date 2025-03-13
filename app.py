@@ -5,7 +5,7 @@ from mistralai import Mistral, UserMessage
 import psycopg2
 import streamlit as st
 
-from utils import retrieve_context, vectorize_query
+from utils import retrieve_context, vectorize_query, format_chunks_with_bullets, system_prompt
 
 db_connection_string = st.secrets['SUPABASE_PG_URL']
 conn = psycopg2.connect(db_connection_string)
@@ -30,21 +30,20 @@ for message in st.session_state.messages:
 
 
 # User input
-if prompt := st.chat_input("Ask me something!"):
+if prompt := st.chat_input("Besoin de renseignement ?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     input_vector = vectorize_query(prompt, client)
-    context = retrieve_context(conn, input_vector, 3)
 
+    context = retrieve_context(conn, input_vector, 10)
+    context = format_chunks_with_bullets(context, prompt)
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    system_message = {"role": "system", "content": f"Context: {context}"}
+    system_message = {"role": "system", "content": f"{system_prompt}\n\nContext: {context}"}
     messages = [system_message] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
 
     # Call Mistral API
-
-
     with st.chat_message("assistant", avatar="images/logoRageau.jpg"):
         stream_response = client.chat.stream(
             model=st.session_state["mistral_model"],

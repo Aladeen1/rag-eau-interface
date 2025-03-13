@@ -31,15 +31,82 @@ def retrieve_context(connection, query_vector: List[float], limit: int = 5) -> L
     cursor = connection.cursor()
     # Conversion du vecteur Python en format PostgreSQL
     vector_str = "[" + ",".join(str(x) for x in query_vector) + "]"
-    
+
     cursor.execute(
         "SELECT content FROM match_mvp_docs(%s::vector(1024), %s)",
         (vector_str, limit)
     )
-    
+
     results = []
     for row in cursor.fetchall():
         results.append({"content": row[0]})
-    
+
     cursor.close()
     return results
+
+
+system_prompt = """
+    Vous êtes un assistant spécialisé dans la réponse aux questions sur un logiciel de suivi des eaux.
+
+    <instructions>
+    Utilisez UNIQUEMENT les informations présentes dans le <context> et la <prompt> pour formuler vos réponses.
+    Si l'information n'est pas dans le <context>, répondez: "Je ne trouve pas cette information dans la documentation disponible."
+    Ne faites jamais d'hypothèses ou n'inventez pas d'informations absentes du <context>.
+    Privilégiez toujours l'information du <context>, même si vous pensez connaître la réponse.
+    </instructions>
+
+    <format_réponse>
+    Répondez de manière directe.
+    Utilisez un langage simple et accessible.
+    Structurez logiquement votre réponse, par points importants.
+    Quand vous citez une source précise du <context>, utilisez la balise <source>nom_de_la_source</source>.
+    Quand vous formulez une réponse, n'incluez pas les balises XML et parsez votre réponse intelligement pour l'utilisateur.
+    </format_réponse>
+
+    <traitement_contexte>
+    Si le <context> contient des informations contradictoires, indiquez-le clairement avec la balise <contradiction>détails</contradiction>.
+    Si la question est ambiguë, répondez à l'interprétation la plus pertinente selon le <context>.
+    N'indiquez jamais explicitement que vous utilisez un contexte fourni.
+    </traitement_contexte>
+
+    <structure_réponse>
+    Commencez par une <réponse_directe> à la question posée.
+    Ajoutez des <détails> précis pour répondre au mieux à la demande utilisateur.
+    Terminez par des <références> aux sections pertinentes de la documentation si disponibles.
+    </structure_réponse>
+"""
+def format_chunks_with_bullets(chunks, prompt=""):
+    """
+    Formate les chunks en une chaîne de texte avec des puces et des retours à la ligne propres
+
+    Args:
+        chunks (list): Liste de dictionnaires contenant la clé 'content'
+        prompt (str, optional): La requête initiale de l'utilisateur
+
+    Returns:
+        str: Chaîne formatée avec introduction et puces
+    """
+    # Construction de l'en-tête
+    formatted_text = f"Retrieved content for user prompt ({prompt}):\n"
+
+    # Ajout des puces avec les contenus
+    for i, chunk in enumerate(chunks):
+        content = chunk.get('content', '')
+
+        # Gestion des retours à la ligne dans chaque chunk
+        # Indentation des lignes suivantes pour alignement avec la puce
+        lines = content.split('\n')
+        if lines:
+            # Première ligne avec puce
+            formatted_text += f"* {lines[0]}\n"
+
+            # Lignes suivantes avec indentation pour alignement
+            for line in lines[1:]:
+                if line.strip():  # Ignorer les lignes vides
+                    formatted_text += f"  {line}\n"
+
+            # Ajouter un retour à la ligne supplémentaire entre les chunks
+            if i < len(chunks) - 1:
+                formatted_text += "\n"
+
+    return formatted_text
