@@ -10,7 +10,7 @@ from utils import retrieve_context, vectorize_query, format_chunks_with_bullets,
 db_connection_string = st.secrets['SUPABASE_PG_URL']
 conn = psycopg2.connect(db_connection_string)
 
-st.title("Mistral Chatbot")
+st.title("Le Ragueauteur")
 
 # Initialize Mistral client
 client = Mistral(api_key=st.secrets["MISTRAL_API_KEY"])
