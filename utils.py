@@ -1,7 +1,5 @@
 import os
 from typing import List, Dict, Any
-import re
-import json
 
 import psycopg2
 from mistralai import Mistral
@@ -62,7 +60,7 @@ system_prompt = """
     Utilisez un langage simple et accessible.
     Structurez logiquement votre réponse, par points importants.
     Quand vous citez une source précise du <context>, utilisez la balise <source>nom_de_la_source</source>.
-    Quand vous formulez un reponse, n'incluez pas les balises XML et parse ta réponse intelligement pour l'utilisateur.
+    Quand vous formulez une réponse, n'incluez pas les balises XML et parsez votre réponse intelligement pour l'utilisateur.
     </format_réponse>
 
     <traitement_contexte>
