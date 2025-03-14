@@ -27,13 +27,13 @@ def vectorize_query(query: str, client: Mistral) -> List[float]:
     return response.data[0].embedding
 
 
-def retrieve_context(connection, query_vector: List[float], limit: int = 5) -> List[Dict[str, Any]]:
+def retrieve_context(connection, table, query_vector: List[float], limit: int = 5) -> List[Dict[str, Any]]:
     cursor = connection.cursor()
     # Conversion du vecteur Python en format PostgreSQL
     vector_str = "[" + ",".join(str(x) for x in query_vector) + "]"
 
     cursor.execute(
-        "SELECT content FROM match_mvp_docs(%s::vector(1024), %s)",
+        f"SELECT content FROM match_{table}(%s::vector(1024), %s)",
         (vector_str, limit)
     )
 

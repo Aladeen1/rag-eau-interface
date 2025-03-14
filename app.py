@@ -8,6 +8,7 @@ import streamlit as st
 from utils import retrieve_context, vectorize_query, format_chunks_with_bullets, system_prompt
 
 db_connection_string = st.secrets['SUPABASE_PG_URL']
+supabase_document_table = st.secrets['SUPABASE_TABLE']
 conn = psycopg2.connect(db_connection_string)
 
 st.title("Le Ragueauteur")
@@ -37,7 +38,7 @@ if prompt := st.chat_input("Besoin de renseignement ?"):
 
     input_vector = vectorize_query(prompt, client)
 
-    context = retrieve_context(conn, input_vector, 10)
+    context = retrieve_context(conn, supabase_document_table, input_vector, 10)
     context = format_chunks_with_bullets(context, prompt)
     with st.chat_message("user"):
         st.markdown(prompt)
