@@ -1,13 +1,17 @@
 from typing import List, Dict, Any
 import time
 
-import pandas as pd
+
 from minio import Minio
 import io
+
+from dotenv import load_dotenv
+
 
 from mistralai import Mistral, UserMessage
 import psycopg2
 import streamlit as st
+import subprocess
 
 from utils import retrieve_context, vectorize_query, format_chunks_with_bullets, system_prompt
 
@@ -106,8 +110,37 @@ def upload_to_minio(file):
 # Interface Streamlit pour drag and drop
 uploaded_file = st.file_uploader("Glissez et déposez votre fichier", type=["pdf"])
 
+
+    # Si un fichier est téléchargé
 if uploaded_file is not None:
     st.write(f"Fichier téléchargé : {uploaded_file.name}")
+    load_dotenv()
+    # Affiche un bouton pour valider l'upload
+    if st.button("Valider l'upload sur MinIO"):
+        # Appel de la fonction pour uploader le fichier sur MinIO
+        file_name = upload_to_minio(uploaded_file)
 
-    # Appel de la fonction pour uploader le fichier sur MinIO
-    upload_to_minio(uploaded_file)
+        st.write("Prétraitement du fichier...")
+
+        # Chemin absolu du script Python (vérifie que ce chemin est correct)
+        script_path = "/Users/mathieumignaton/code/Mignat90/ValentinProject/rag-eau/scripts/main.py"
+
+        try:
+            # Capture de l'output et de l'error
+
+            result = subprocess.run(
+
+                ["python", script_path],
+                check=True,
+                capture_output=True,  # Capture stdout et stderr
+                text=True  # Les résultats seront des chaînes de caractères, pas des bytes
+            )
+            # Afficher le résultat de l'exécution
+            st.success(f"Le prétraitement du fichier {file_name} est terminé.")
+            st.write("Sortie du script:")
+            st.write(result.stdout)
+        except subprocess.CalledProcessError as e:
+            # Si une erreur se produit, afficher l'output d'erreur
+            st.error(f"Erreur lors de l'exécution du prétraitement: {e}")
+            st.write("Erreur:")
+            st.write(e.stderr)  # Affiche le message d'erreur retourné par le script
