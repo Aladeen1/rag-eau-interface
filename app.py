@@ -1,6 +1,10 @@
 from typing import List, Dict, Any
 import time
 
+import pandas as pd
+from minio import Minio
+import io
+
 from mistralai import Mistral, UserMessage
 import psycopg2
 import streamlit as st
@@ -63,3 +67,47 @@ if prompt := st.chat_input("Besoin de renseignement ?"):
         placeholder.markdown(full_response, unsafe_allow_html=True)  # Affiche la réponse complète
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+# FONCTION DRAG AND DROP
+
+# Configuration de MinIO
+minio_client = Minio(
+    st.secrets['MINIO_INSTANCE_URL'],  # Remplacez par l'URL de votre instance MinIO
+    access_key= st.secrets['MINIO_ACCESS_KEY'],
+    secret_key=st.secrets["MINIO_SECRET_KEY"],
+    secure=False  # Choisissez True si vous utilisez HTTPS
+)
+
+# Nom du bucket sur MinIO
+bucket_name = "pdf"
+
+def upload_to_minio(file):
+    # Lire le contenu du fichier téléchargé
+    file_content = file.read()
+
+    # Crée un flux en mémoire pour MinIO
+    file_stream = io.BytesIO(file_content)
+
+    # Nom du fichier (tu peux ajouter un timestamp pour éviter les collisions)
+    file_name = file.name
+
+    try:
+        # Upload sur MinIO
+        minio_client.put_object(
+            bucket_name,  # Le nom du bucket
+            file_name,    # Le nom du fichier sur MinIO
+            file_stream,  # Le flux du fichier
+            len(file_content)  # La taille du fichier
+        )
+        st.success(f"Fichier {file_name} téléchargé avec succès sur MinIO.")
+    except Exception as e:
+        st.error(f"Erreur lors de l'upload sur MinIO: {e}")
+
+# Interface Streamlit pour drag and drop
+uploaded_file = st.file_uploader("Glissez et déposez votre fichier", type=["pdf"])
+
+if uploaded_file is not None:
+    st.write(f"Fichier téléchargé : {uploaded_file.name}")
+
+    # Appel de la fonction pour uploader le fichier sur MinIO
+    upload_to_minio(uploaded_file)
