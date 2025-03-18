@@ -559,13 +559,16 @@ async def main():
                 print(f"Problème de fermeture du pool: {e}")
 
 
-def execute_mode_profond(question: str):
+def execute_mode_profond(question: str) -> EnhancedAnswer:
     """
     Fonction synchrone qui permet d'appeler facilement le workflow d'agent
     depuis une application Streamlit.
 
     Args:
         question (str): La question de l'utilisateur
+
+    Returns:
+        EnhancedAnswer: La réponse structurée
     """
     async def run_query():
         # Initialise la connexion à la base de données
@@ -585,3 +588,6 @@ def execute_mode_profond(question: str):
 
     # Exécute la fonction asynchrone et retourne le résultat
     return asyncio.run(run_query())
+
+
+resultat = execute_mode_profond('quelle est la trame correspondante a la piézométrie ?')
