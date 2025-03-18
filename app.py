@@ -22,6 +22,10 @@ client = Mistral(api_key=st.secrets["MISTRAL_API_KEY"])
 if "mistral_model" not in st.session_state:
     st.session_state["mistral_model"] = "mistral-large-latest"
 
+#Add "mode" to the session state
+if 'mode' not in st.session_state:
+    st.session_state['mode'] = 'concis'
+
 # Store chat messages
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -30,6 +34,17 @@ if "messages" not in st.session_state:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+
+#Configuration bouton + logique
+option_names = ['concis', 'profond']
+
+mode_button = st.button(f"Mode {st.session_state['mode']}")
+
+if mode_button:
+    if st.session_state['mode'] == 'concis':
+        st.session_state.mode = 'profond'
+    elif st.session_state['mode'] == 'profond':
+        st.session_state.mode = 'concis'
 
 
 # User input
