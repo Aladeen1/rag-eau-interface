@@ -2,7 +2,3 @@ streamlit
 mistralai
 psycopg2-binary
 minio
-langchain
-supabase
-python-dotenv
-minio
