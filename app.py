@@ -119,28 +119,3 @@ if uploaded_file is not None:
     if st.button("Valider l'upload sur MinIO"):
         # Appel de la fonction pour uploader le fichier sur MinIO
         file_name = upload_to_minio(uploaded_file)
-
-        st.write("Prétraitement du fichier...")
-
-        # Chemin absolu du script Python (vérifie que ce chemin est correct)
-        script_path = "/Users/mathieumignaton/code/Mignat90/ValentinProject/rag-eau/scripts/main.py"
-
-        try:
-            # Capture de l'output et de l'error
-
-            result = subprocess.run(
-
-                ["python", script_path],
-                check=True,
-                capture_output=True,  # Capture stdout et stderr
-                text=True  # Les résultats seront des chaînes de caractères, pas des bytes
-            )
-            # Afficher le résultat de l'exécution
-            st.success(f"Le prétraitement du fichier {file_name} est terminé.")
-            st.write("Sortie du script:")
-            st.write(result.stdout)
-        except subprocess.CalledProcessError as e:
-            # Si une erreur se produit, afficher l'output d'erreur
-            st.error(f"Erreur lors de l'exécution du prétraitement: {e}")
-            st.write("Erreur:")
-            st.write(e.stderr)  # Affiche le message d'erreur retourné par le script
