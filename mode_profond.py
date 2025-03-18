@@ -327,6 +327,14 @@ async def init_db_pool() -> Pool:
         command_timeout=10.0
     )
 
+def get_streamlit_deps(pool):
+    """Crée des dépendances spécifiques pour l'environnement Streamlit avec plus de tentatives"""
+    return RetrievalDeps(
+        conn=pool,
+        max_attempts=5,  # Plus de tentatives
+        cache={}
+    )
+
 async def process_query(question: str, pool: Pool) -> EnhancedAnswer:
     """Traite une requête utilisateur avec raffinement adaptatif et présentation enrichie"""
     state = ProcessingState(original_query=question)
@@ -551,29 +559,29 @@ async def main():
                 print(f"Problème de fermeture du pool: {e}")
 
 
-def execute_mode_profond(question: str) -> EnhancedAnswer:
+def execute_mode_profond(question: str):
     """
     Fonction synchrone qui permet d'appeler facilement le workflow d'agent
     depuis une application Streamlit.
 
     Args:
         question (str): La question de l'utilisateur
-
-    Returns:
-        EnhancedAnswer: La réponse structurée
     """
-    # Configure asyncio pour fonctionner avec Streamlit
-    import nest_asyncio
-    nest_asyncio.apply()
-
     async def run_query():
         # Initialise la connexion à la base de données
         pool = await init_db_pool()
         try:
             return await process_query(question, pool)
         finally:
-            # Définir un timeout plus long (par exemple 30 secondes)
-            await asyncio.wait_for(pool.close(), timeout=30.0)
+            # Gestion plus robuste de la fermeture du pool
+            try:
+                # Utilisation de asyncio.shield pour éviter que le timeout n'annule l'opération de fermeture
+                close_task = asyncio.shield(pool.close())
+                await asyncio.wait_for(close_task, timeout=5.0)
+            except asyncio.TimeoutError:
+                print("Attention: Timeout lors de la fermeture du pool, mais l'opération continue en arrière-plan")
+            except Exception as e:
+                print(f"Problème de fermeture du pool: {e}")
 
     # Exécute la fonction asynchrone et retourne le résultat
     return asyncio.run(run_query())
