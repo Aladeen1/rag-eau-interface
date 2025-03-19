@@ -68,15 +68,33 @@ if prompt := st.chat_input("Besoin de renseignement ?"):
     st.session_state.messages.append({"role": "assistant", "content": full_response})
 
 
-# Interface Streamlit pour drag and drop
-uploaded_file = st.file_uploader("Glissez et déposez votre fichier", type=["pdf"])
+st.subheader("Télécharger un fichier sur Google Cloud Storage")
 
+# Téléchargez le fichier
+uploaded_file = st.file_uploader("Glissez et déposez votre fichier", type=["pdf", "md"])
 
-    # Si un fichier est téléchargé
+# Si un fichier est téléchargé
 if uploaded_file is not None:
     st.write(f"Fichier téléchargé : {uploaded_file.name}")
+
+    # Déterminer le bucket en fonction du type de fichier
+    file_extension = uploaded_file.name.split('.')[-1].lower()  # Récupère l'extension du fichier
+
+    if file_extension == "pdf":
+        bucket_name = st.secrets["bucket_name_pdf"]
+        st.write("Le fichier sera uploadé dans le bucket PDF.")
+    elif file_extension == "md":
+        bucket_name = st.secrets["bucket_name_markdown"]
+        st.write("Le fichier sera uploadé dans le bucket Markdown.")
+    else:
+        st.error("Le fichier n'est ni un PDF ni un fichier Markdown.")
+        bucket_name = None
+
     # Affiche un bouton pour valider l'upload
-    if st.button("Valider l'upload"):
-        # Appel de la fonction pour uploader le fichier sur gcloud
-        file_name=upload_to_gcloud(uploaded_file,bucket_name=st.secrets["bucket_name_gcloud"])
-        st.write(file_name)
+    if bucket_name is not None and st.button("Valider l'upload"):
+        # Assurez-vous que les informations du bucket sont présentes dans `st.secrets`
+        try:
+            result = upload_to_gcloud(uploaded_file, bucket_name)
+            st.success(result)
+        except Exception as e:
+            st.error(f"Erreur lors de l'upload du fichier : {str(e)}")
