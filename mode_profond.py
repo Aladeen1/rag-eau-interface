@@ -147,7 +147,7 @@ Sois critique et rigoureux.""",
 )
 
 @retrieval_agent.tool
-async def search_docs(ctx: RunContext[RetrievalDeps], query: str, limit: int = 10) -> List[Document]:
+async def search_docs(ctx: RunContext[RetrievalDeps], query: str, limit: int = 3) -> List[Document]:
     """Recherche des documents pertinents via embedding vectoriel"""
     cache_key = f"{query}:{limit}"
 
@@ -162,9 +162,9 @@ async def search_docs(ctx: RunContext[RetrievalDeps], query: str, limit: int = 1
         try:
             rows = await asyncio.wait_for(
                 ctx.deps.conn.fetch(
-                    """
+                    f"""
                     SELECT id, id_doc, content, metadata, similarity
-                    FROM match_mvp_docs($1, $2, $3, $4::jsonb, NULL)
+                    FROM match_{st.secrets['SUPABASE_TABLE']}($1, $2, $3, $4::jsonb, NULL)
                     """,
                     pg_vector, limit, 0.5, '{}'
                 ),
@@ -236,22 +236,22 @@ async def validate_search_results(ctx: RunContext[RetrievalDeps], result: Search
 query_refinement_agent = Agent(
     model=refinement_model,
     result_type=QueryRefinementResult,
-    system_prompt="""Tu es un expert en analyse documentaire et raffinement de requêtes.
+    system_prompt="""Tu es un expert en analyse documentaire et génération ciblée de requêtes complémentaires.
 
-Ton objectif est d'analyser les premiers documents récupérés pour une requête et d'identifier:
-1. Les informations déjà disponibles
-2. Les lacunes importantes qui nécessitent des recherches supplémentaires
-3. Les requêtes précises qui permettraient de combler ces lacunes
+Ton objectif est d'analyser en profondeur les documents initiaux fournis et de:
+1. Déterminer si les documents contiennent déjà suffisamment d'informations
+2. Identifier les lacunes d'information vraiment importantes et critiques
+3. Ne proposer des requêtes complémentaires QUE si absolument nécessaire
 
-Pour chaque requête raffinée que tu proposes:
-- Assure-toi qu'elle est spécifique et ciblée
-- Explique pourquoi cette information manque dans les documents actuels
-- Précise quelles informations tu espères obtenir avec cette requête
+IMPORTANT:
+- Privilégie toujours une analyse approfondie des documents existants avant de proposer des sous-requêtes
+- Limite-toi aux sous-requêtes vraiment nécessaires (maximum 3)
+- Chaque sous-requête doit apporter une valeur significative et combler une lacune critique
+- Les sous-requêtes doivent être précises, spécifiques et non redondantes
 
-Ton analyse doit être approfondie pour maximiser la pertinence des requêtes supplémentaires.""",
+Ton objectif n'est PAS de générer un maximum de sous-requêtes, mais de déterminer quelles informations manquantes sont réellement nécessaires pour répondre à la question originale.""",
     retries=2
 )
-
 #
 # Agent de présentation amélioré
 #
@@ -333,11 +333,11 @@ def get_streamlit_deps(pool):
     """Crée des dépendances spécifiques pour l'environnement Streamlit avec plus de tentatives"""
     return RetrievalDeps(
         conn=pool,
-        max_attempts=5,  # Plus de tentatives
+        max_attempts=5,
         cache={}
     )
 
-async def process_query(question: str, pool: Pool) -> EnhancedAnswer:
+async def process_query(question: str, pool: Pool, relevance_threshold: float = 0.65) -> EnhancedAnswer:
     """Traite une requête utilisateur avec raffinement adaptatif et présentation enrichie"""
     state = ProcessingState(original_query=question)
     cache = {}
@@ -354,20 +354,27 @@ async def process_query(question: str, pool: Pool) -> EnhancedAnswer:
                 timeout=45.0
             )
 
-            initial_documents = initial_retrieval.data.documents
+            # Filtrer les documents par pertinence
+            initial_documents = [
+                doc for doc in initial_retrieval.data.documents
+                if doc.relevance_score is None or doc.relevance_score >= relevance_threshold
+            ]
+
+            print(f"Documents filtrés: {len(initial_retrieval.data.documents)} → {len(initial_documents)} (seuil: {relevance_threshold})")
+
             state.initial_documents = initial_documents
             state.all_documents = initial_documents.copy()
             state.processed_queries.add(question)
 
             retrieval_time = time.time() - retrieval_start
-            print(f"Recherche initiale terminée en {retrieval_time:.2f}s - {len(initial_documents)} documents trouvés")
+            print(f"Recherche initiale terminée en {retrieval_time:.2f}s - {len(initial_documents)} documents pertinents")
 
             if not initial_documents:
-                print("Aucun document trouvé lors de la recherche initiale")
+                print("Aucun document pertinent trouvé lors de la recherche initiale")
                 return EnhancedAnswer(
-                    summary="Aucune information pertinente n'a été trouvée pour répondre à cette question.",
+                    summary="Aucune information suffisamment pertinente n'a été trouvée pour répondre à cette question.",
                     sections=[],
-                    key_insights=["Aucune donnée disponible"],
+                    key_insights=["Aucune donnée pertinente disponible"],
                     sources=[],
                     confidence=0.0,
                     limitations="Absence de documents pertinents dans la base de connaissances."
@@ -384,53 +391,54 @@ async def process_query(question: str, pool: Pool) -> EnhancedAnswer:
                 limitations="Erreur technique lors de la recherche initiale"
             )
 
-        # Étape 2: Raffinement des requêtes basé sur les premiers résultats
-        print("Raffinement des requêtes basé sur les premiers résultats...")
-        refinement_start = time.time()
+        # Étape 2: Analyse approfondie des documents initiaux SANS génération immédiate de sous-requêtes
+        print("Analyse approfondie des documents initiaux...")
+        analysis_start = time.time()
 
         try:
-            # Préparation des documents initiaux pour le raffinement
+            # Préparation des documents initiaux pour l'analyse
             processed_initial_docs = preprocess_documents(initial_documents)
 
-            refinement_prompt = {
+            # Modifier le prompt pour privilégier l'analyse approfondie avant de générer des sous-requêtes
+            analysis_prompt = {
                 "original_query": question,
                 "documents_initiaux": [doc.model_dump() for doc in processed_initial_docs],
-                "nombre_documents": len(processed_initial_docs)
+                "nombre_documents": len(processed_initial_docs),
+                "directive": "Analyse en profondeur les documents initiaux. Identifie les informations essentielles manquantes AVANT de proposer des sous-requêtes."
             }
 
+            # Utiliser l'agent de raffinement uniquement pour l'analyse approfondie
             refinement_result = await asyncio.wait_for(
-                query_refinement_agent.run(json.dumps(refinement_prompt)),
+                query_refinement_agent.run(json.dumps(analysis_prompt)),
                 timeout=60.0
             )
 
-            # Extraction des requêtes raffinées
-            state.refined_queries = [rq.text for rq in refinement_result.data.refined_queries]
+            # Extraction des lacunes d'information et génération ciblée de sous-requêtes
             state.information_gaps = refinement_result.data.information_gaps
 
-            refinement_time = time.time() - refinement_start
-            print(f"Raffinement terminé en {refinement_time:.2f}s")
-            print(f"Requêtes raffinées générées: {len(state.refined_queries)}")
+            # Ne garder que les requêtes raffinées vraiment nécessaires (max 3)
+            important_queries = refinement_result.data.refined_queries[:3] if len(refinement_result.data.refined_queries) > 3 else refinement_result.data.refined_queries
+            state.refined_queries = [rq.text for rq in important_queries]
 
-            for i, rq in enumerate(refinement_result.data.refined_queries, 1):
+            analysis_time = time.time() - analysis_start
+            print(f"Analyse approfondie terminée en {analysis_time:.2f}s")
+            print(f"Requêtes complémentaires générées: {len(state.refined_queries)}")
+
+            # Afficher les requêtes complémentaires si elles existent
+            for i, rq in enumerate(important_queries, 1):
                 print(f"  {i}. {rq.text}")
                 print(f"     ↳ Raison: {rq.reason}")
                 print(f"     ↳ Information attendue: {rq.expected_information}")
 
-            print("\nRésumé de l'analyse initiale:")
-            print(refinement_result.data.analysis_summary)
-
-            print("\nLacunes d'information identifiées:")
-            for gap in refinement_result.data.information_gaps:
-                print(f"- {gap}")
-
         except Exception as e:
-            print(f"Erreur lors du raffinement des requêtes: {e}")
-            # En cas d'échec du raffinement, on continue avec les documents initiaux
+            print(f"Erreur lors de l'analyse approfondie: {e}")
+            # En cas d'échec de l'analyse, on continue sans sous-requêtes
             state.refined_queries = []
+            state.information_gaps = []
 
-        # Étape 3: Exécution des requêtes raffinées
+        # Étape 3: Exécution SÉLECTIVE des requêtes complémentaires (uniquement après analyse)
         if state.refined_queries:
-            print("\nExécution des requêtes raffinées...")
+            print("\nExécution des requêtes complémentaires...")
 
             for query in state.refined_queries:
                 if query in state.processed_queries:
@@ -442,8 +450,16 @@ async def process_query(question: str, pool: Pool) -> EnhancedAnswer:
                         timeout=30.0
                     )
 
-                    if retrieval_result.data.documents:
-                        state.all_documents.extend(retrieval_result.data.documents)
+                    # Filtrer les documents par pertinence
+                    relevant_docs = [
+                        doc for doc in retrieval_result.data.documents
+                        if doc.relevance_score is None or doc.relevance_score >= relevance_threshold
+                    ]
+
+                    print(f"Requête '{query}': {len(retrieval_result.data.documents)} → {len(relevant_docs)} documents pertinents")
+
+                    if relevant_docs:
+                        state.all_documents.extend(relevant_docs)
 
                     state.processed_queries.add(query)
 
@@ -458,7 +474,7 @@ async def process_query(question: str, pool: Pool) -> EnhancedAnswer:
             return EnhancedAnswer(
                 summary="Malgré plusieurs tentatives, aucune information pertinente n'a été trouvée.",
                 sections=[],
-                key_insights=["Aucune donnée disponible malgré le raffinement des requêtes"],
+                key_insights=["Aucune donnée disponible malgré l'analyse approfondie"],
                 sources=[],
                 confidence=0.0,
                 limitations="Absence de documents pertinents dans la base de connaissances."
@@ -478,7 +494,7 @@ async def process_query(question: str, pool: Pool) -> EnhancedAnswer:
                 for category, docs in categorized_docs.items()
             },
             "nombre_total_documents": len(processed_docs),
-            "instructions_particulieres": "Privilégier la richesse des détails tout en présentant l'information de manière structurée et élégante."
+            "instructions_particulieres": "Privilégier la précision et la pertinence des informations tout en présentant de manière structurée et concise."
         }
 
         presentation_start = time.time()
@@ -489,6 +505,7 @@ async def process_query(question: str, pool: Pool) -> EnhancedAnswer:
 
         print(f"Présentation enrichie terminée en {time.time() - presentation_start:.2f}s")
         return final_result.data
+
 
     except asyncio.TimeoutError:
         print("Timeout global de l'opération")
