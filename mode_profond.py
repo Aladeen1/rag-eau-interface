@@ -511,55 +511,6 @@ async def process_query(question: str, pool: Pool) -> EnhancedAnswer:
             limitations=f"Erreur technique: {str(e)}"
         )
 
-# async def main():
-#     """Point d'entrée principal"""
-#     pool = None
-#     try:
-#         print("Initialisation de la connexion à la base de données...")
-#         pool = await asyncio.wait_for(init_db_pool(), timeout=15.0)
-
-#         question = ""
-#         start_time = time.time()
-
-#         result = await process_query(question, pool)
-
-#         # Affichage formaté du résultat
-#         print("\n" + "="*80)
-#         print(f"📌 RÉSUMÉ: {result.summary}")
-#         print("="*80)
-
-#         # Affichage des sections détaillées
-#         for i, section in enumerate(result.sections, 1):
-#             print(f"\n## {i}. {section.title}")
-#             print(f"{section.content}")
-#             print(f"Sources: {', '.join(section.sources)}")
-
-#         # Points clés
-#         print("\n" + "-"*80)
-#         print("🔑 POINTS CLÉS:")
-#         for i, insight in enumerate(result.key_insights, 1):
-#             print(f"  {i}. {insight}")
-
-#         # Métadonnées
-#         print("\n" + "-"*80)
-#         print(f"📚 Sources utilisées: {', '.join(result.sources)}")
-#         print(f"🎯 Niveau de confiance: {result.confidence * 100:.1f}%")
-
-#         if result.limitations:
-#             print(f"⚠️ Limitations: {result.limitations}")
-
-#         print("-"*80)
-#         print(f"⏱️ Temps total: {time.time() - start_time:.2f}s")
-
-#         return result
-
-#     finally:
-#         if pool:
-#             try:
-#                 await asyncio.wait_for(pool.close(), timeout=5.0)
-#             except Exception as e:
-#                 print(f"Problème de fermeture du pool: {e}")
-
 
 def execute_mode_profond(question: str) -> EnhancedAnswer:
     """

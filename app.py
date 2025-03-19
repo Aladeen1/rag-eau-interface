@@ -86,21 +86,78 @@ if prompt := st.chat_input("Besoin de renseignement ?"):
 
     # Mode profond (nouveau)
     elif st.session_state['mode'] == 'profond':
+        start_time = time.time()  # Pour calculer le temps total
+
+        # Ajouter le message de l'utilisateur à l'historique et l'afficher
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
         with st.chat_message("assistant", avatar="images/logoRageau.jpg"):
             with st.spinner("Analyse approfondie en cours..."):
                 # Appel au workflow d'agent
                 resultat = execute_mode_profond(prompt)
 
-                # Affichage du résultat
+                # Bannière de résumé
+                st.markdown("---")
+                st.markdown("## 📌 RÉSUMÉ")
                 st.markdown(resultat.summary)
+                st.markdown("---")
 
-                # Affichage des sections détaillées
-                for section in resultat.sections:
-                    with st.expander(section.title):
+                # Sections détaillées
+                for i, section in enumerate(resultat.sections, 1):
+                    with st.expander(f"{i}. {section.title}"):
                         st.markdown(section.content)
+                        st.caption(f"Sources: {', '.join(section.sources)}")
 
-                # Stockage de la réponse complète pour l'historique
-                full_response = resultat.summary + "\n\n" + "\n".join([f"### {s.title}\n{s.content}" for s in resultat.sections])
+                # Points clés
+                if resultat.key_insights:
+                    st.markdown("## 🔑 POINTS CLÉS")
+                    for i, insight in enumerate(resultat.key_insights, 1):
+                        st.markdown(f"**{i}.** {insight}")
+
+                # Métadonnées
+                st.markdown("---")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if resultat.sources:
+                        st.markdown(f"**📚 Sources utilisées:** {len(resultat.sources)}")
+                        with st.expander("Voir les sources"):
+                            for src in resultat.sources:
+                                st.markdown(f"- {src}")
+
+                with col2:
+                    st.markdown(f"**🎯 Niveau de confiance:** {resultat.confidence * 100:.1f}%")
+
+                    # Afficher le temps total
+                    elapsed_time = time.time() - start_time
+                    st.markdown(f"**⏱️ Temps total:** {elapsed_time:.2f}s")
+
+                # Limitations si présentes
+                if resultat.limitations:
+                    st.warning(f"**⚠️ Limitations:** {resultat.limitations}")
+
+            # Création de la réponse pour l'historique sans utiliser de f-string complexe
+            full_response = "## 📌 RÉSUMÉ\n" + resultat.summary + "\n\n"
+
+            # Ajouter les sections
+            full_response += "## SECTIONS DÉTAILLÉES\n"
+            for section in resultat.sections:
+                full_response += f"### {section.title}\n{section.content}\n\n"
+
+            # Ajouter les points clés
+            full_response += "## 🔑 POINTS CLÉS\n"
+            for insight in resultat.key_insights:
+                full_response += f"- {insight}\n"
+
+            # Ajouter les métadonnées
+            full_response += f"\n## MÉTADONNÉES\n"
+            full_response += f"- 📚 Sources: {len(resultat.sources)}\n"
+            full_response += f"- 🎯 Confiance: {resultat.confidence * 100:.1f}%\n"
+
+            # Ajouter les limitations si présentes
+            if resultat.limitations:
+                full_response += f"\n⚠️ **Limitations:** {resultat.limitations}"
 
         # Mise à jour de l'historique
         st.session_state.messages.append({"role": "assistant", "content": full_response})
