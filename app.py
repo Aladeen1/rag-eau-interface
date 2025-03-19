@@ -9,6 +9,7 @@ import streamlit as st
 
 from utils import retrieve_context, vectorize_query, format_chunks_with_bullets, system_prompt
 from mode_profond import execute_mode_profond
+from clients import client
 
 # Active le support des boucles asyncio imbriquées (important pour Streamlit)
 nest_asyncio.apply()
@@ -20,9 +21,6 @@ conn = psycopg2.connect(db_connection_string)
 st.title("Le Ragueauteur")
 
 st.text("Le Ragueauteur vous permet de poser n'importe quelle question en lien avec le système de gestion des données des eaux souterraines.")
-
-# Initialize Mistral client
-client = Mistral(api_key=st.secrets["MISTRAL_API_KEY"])
 
 # Set default model
 if "mistral_model" not in st.session_state:

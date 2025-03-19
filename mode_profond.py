@@ -10,6 +10,7 @@ import asyncio
 import random
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Set
+from functools import partial
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext, ModelRetry
@@ -19,6 +20,7 @@ import streamlit as st
 import nest_asyncio
 
 from utils import vectorize_query
+from clients import client
 
 # Active le support des boucles asyncio imbriquées
 nest_asyncio.apply()
@@ -114,7 +116,7 @@ async def get_embedding(query: str, max_retries=3) -> List[float]:
     while retry_count < max_retries:
         try:
             loop = asyncio.get_event_loop()
-            embedding = await loop.run_in_executor(None, vectorize_query, query)
+            embedding = await loop.run_in_executor(None, partial(vectorize_query, query), client)
             embedding_cache[cache_key] = embedding
             return embedding
         except Exception as e:
@@ -162,7 +164,7 @@ async def search_docs(ctx: RunContext[RetrievalDeps], query: str, limit: int = 1
                 ctx.deps.conn.fetch(
                     """
                     SELECT id, id_doc, content, metadata, similarity
-                    FROM match_dev_database($1, $2, $3, $4::jsonb, NULL)
+                    FROM match_mvp_docs($1, $2, $3, $4::jsonb, NULL)
                     """,
                     pg_vector, limit, 0.5, '{}'
                 ),
@@ -323,7 +325,7 @@ async def init_db_pool() -> Pool:
         min_size=5,
         max_size=15,
         statement_cache_size=0,
-        timeout=10.0,
+        timeout=120.0,
         command_timeout=10.0
     )
 
@@ -509,54 +511,54 @@ async def process_query(question: str, pool: Pool) -> EnhancedAnswer:
             limitations=f"Erreur technique: {str(e)}"
         )
 
-async def main():
-    """Point d'entrée principal"""
-    pool = None
-    try:
-        print("Initialisation de la connexion à la base de données...")
-        pool = await asyncio.wait_for(init_db_pool(), timeout=15.0)
+# async def main():
+#     """Point d'entrée principal"""
+#     pool = None
+#     try:
+#         print("Initialisation de la connexion à la base de données...")
+#         pool = await asyncio.wait_for(init_db_pool(), timeout=15.0)
 
-        question = "Peux-tu me dire comment bancariser des données de piézométrie dans ADES avec le format trames?"
-        start_time = time.time()
+#         question = ""
+#         start_time = time.time()
 
-        result = await process_query(question, pool)
+#         result = await process_query(question, pool)
 
-        # Affichage formaté du résultat
-        print("\n" + "="*80)
-        print(f"📌 RÉSUMÉ: {result.summary}")
-        print("="*80)
+#         # Affichage formaté du résultat
+#         print("\n" + "="*80)
+#         print(f"📌 RÉSUMÉ: {result.summary}")
+#         print("="*80)
 
-        # Affichage des sections détaillées
-        for i, section in enumerate(result.sections, 1):
-            print(f"\n## {i}. {section.title}")
-            print(f"{section.content}")
-            print(f"Sources: {', '.join(section.sources)}")
+#         # Affichage des sections détaillées
+#         for i, section in enumerate(result.sections, 1):
+#             print(f"\n## {i}. {section.title}")
+#             print(f"{section.content}")
+#             print(f"Sources: {', '.join(section.sources)}")
 
-        # Points clés
-        print("\n" + "-"*80)
-        print("🔑 POINTS CLÉS:")
-        for i, insight in enumerate(result.key_insights, 1):
-            print(f"  {i}. {insight}")
+#         # Points clés
+#         print("\n" + "-"*80)
+#         print("🔑 POINTS CLÉS:")
+#         for i, insight in enumerate(result.key_insights, 1):
+#             print(f"  {i}. {insight}")
 
-        # Métadonnées
-        print("\n" + "-"*80)
-        print(f"📚 Sources utilisées: {', '.join(result.sources)}")
-        print(f"🎯 Niveau de confiance: {result.confidence * 100:.1f}%")
+#         # Métadonnées
+#         print("\n" + "-"*80)
+#         print(f"📚 Sources utilisées: {', '.join(result.sources)}")
+#         print(f"🎯 Niveau de confiance: {result.confidence * 100:.1f}%")
 
-        if result.limitations:
-            print(f"⚠️ Limitations: {result.limitations}")
+#         if result.limitations:
+#             print(f"⚠️ Limitations: {result.limitations}")
 
-        print("-"*80)
-        print(f"⏱️ Temps total: {time.time() - start_time:.2f}s")
+#         print("-"*80)
+#         print(f"⏱️ Temps total: {time.time() - start_time:.2f}s")
 
-        return result
+#         return result
 
-    finally:
-        if pool:
-            try:
-                await asyncio.wait_for(pool.close(), timeout=5.0)
-            except Exception as e:
-                print(f"Problème de fermeture du pool: {e}")
+#     finally:
+#         if pool:
+#             try:
+#                 await asyncio.wait_for(pool.close(), timeout=5.0)
+#             except Exception as e:
+#                 print(f"Problème de fermeture du pool: {e}")
 
 
 def execute_mode_profond(question: str) -> EnhancedAnswer:
@@ -580,7 +582,7 @@ def execute_mode_profond(question: str) -> EnhancedAnswer:
             try:
                 # Utilisation de asyncio.shield pour éviter que le timeout n'annule l'opération de fermeture
                 close_task = asyncio.shield(pool.close())
-                await asyncio.wait_for(close_task, timeout=5.0)
+                await asyncio.wait_for(close_task, timeout=90.0)
             except asyncio.TimeoutError:
                 print("Attention: Timeout lors de la fermeture du pool, mais l'opération continue en arrière-plan")
             except Exception as e:
@@ -588,6 +590,3 @@ def execute_mode_profond(question: str) -> EnhancedAnswer:
 
     # Exécute la fonction asynchrone et retourne le résultat
     return asyncio.run(run_query())
-
-
-resultat = execute_mode_profond('quelle est la trame correspondante a la piézométrie ?')
