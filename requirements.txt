@@ -1,3 +1,4 @@
 streamlit
 mistralai
 psycopg2-binary
+minio
