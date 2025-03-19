@@ -1,4 +1,8 @@
 streamlit
 mistralai
 psycopg2-binary
+pydantic
+pydantic_ai
+asyncpg
+nest_asyncio
 minio
