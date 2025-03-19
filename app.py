@@ -8,7 +8,7 @@ import psycopg2
 import streamlit as st
 
 from utils import retrieve_context, vectorize_query, format_chunks_with_bullets, system_prompt
-from mode_profond import execute_mode_profond
+from mode_profond import execute_rag_workflow
 from clients import client
 
 # Active le support des boucles asyncio imbriquées (important pour Streamlit)
@@ -81,7 +81,7 @@ if prompt := st.chat_input("Besoin de renseignement ?"):
                     placeholder.markdown(full_response + "▌", unsafe_allow_html=True)  # Affiche la réponse partielle
                     time.sleep(0.05)  # Petite pause pour rendre l'affichage plus naturel
             placeholder.markdown(full_response, unsafe_allow_html=True)  # Affiche la réponse complète
-
+        st.write(content)
         st.session_state.messages.append({"role": "assistant", "content": full_response})
 
     # Mode profond (nouveau)
@@ -96,68 +96,26 @@ if prompt := st.chat_input("Besoin de renseignement ?"):
         with st.chat_message("assistant", avatar="images/logoRageau.jpg"):
             with st.spinner("Analyse approfondie en cours..."):
                 # Appel au workflow d'agent
-                resultat = execute_mode_profond(prompt)
+                resultat = execute_rag_workflow(prompt)
 
-                # Bannière de résumé
-                st.markdown("---")
-                st.markdown("## 📌 RÉSUMÉ")
-                st.markdown(resultat.summary)
-                st.markdown("---")
+        system_message = {"role": "system", "content": f"{system_prompt}\n\nContext: {resultat}"}
+        messages = [system_message] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
 
-                # Sections détaillées
-                for i, section in enumerate(resultat.sections, 1):
-                    with st.expander(f"{i}. {section.title}"):
-                        st.markdown(section.content)
-                        st.caption(f"Sources: {', '.join(section.sources)}")
-
-                # Points clés
-                if resultat.key_insights:
-                    st.markdown("## 🔑 POINTS CLÉS")
-                    for i, insight in enumerate(resultat.key_insights, 1):
-                        st.markdown(f"**{i}.** {insight}")
-
-                # Métadonnées
-                st.markdown("---")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if resultat.sources:
-                        st.markdown(f"**📚 Sources utilisées:** {len(resultat.sources)}")
-                        with st.expander("Voir les sources"):
-                            for src in resultat.sources:
-                                st.markdown(f"- {src}")
-
-                with col2:
-                    st.markdown(f"**🎯 Niveau de confiance:** {resultat.confidence * 100:.1f}%")
-
-                    # Afficher le temps total
-                    elapsed_time = time.time() - start_time
-                    st.markdown(f"**⏱️ Temps total:** {elapsed_time:.2f}s")
-
-                # Limitations si présentes
-                if resultat.limitations:
-                    st.warning(f"**⚠️ Limitations:** {resultat.limitations}")
-
-            # Création de la réponse pour l'historique sans utiliser de f-string complexe
-            full_response = "## 📌 RÉSUMÉ\n" + resultat.summary + "\n\n"
-
-            # Ajouter les sections
-            full_response += "## SECTIONS DÉTAILLÉES\n"
-            for section in resultat.sections:
-                full_response += f"### {section.title}\n{section.content}\n\n"
-
-            # Ajouter les points clés
-            full_response += "## 🔑 POINTS CLÉS\n"
-            for insight in resultat.key_insights:
-                full_response += f"- {insight}\n"
-
-            # Ajouter les métadonnées
-            full_response += f"\n## MÉTADONNÉES\n"
-            full_response += f"- 📚 Sources: {len(resultat.sources)}\n"
-            full_response += f"- 🎯 Confiance: {resultat.confidence * 100:.1f}%\n"
-
-            # Ajouter les limitations si présentes
-            if resultat.limitations:
-                full_response += f"\n⚠️ **Limitations:** {resultat.limitations}"
-
+        # Call Mistral API
+        with st.chat_message("assistant", avatar="images/logoRageau.jpg"):
+            stream_response = client.chat.stream(
+                model=st.session_state["mistral_model"],
+                messages=messages,
+            )
+            full_response = ""
+            placeholder = st.empty()  # Crée un espace réservé pour la réponse
+            for chunk in stream_response:
+                content = chunk.data.choices[0].delta.content
+                if content:
+                    full_response += content
+                    placeholder.markdown(full_response + "▌", unsafe_allow_html=True)  # Affiche la réponse partielle
+                    time.sleep(0.05)  # Petite pause pour rendre l'affichage plus naturel
+            placeholder.markdown(full_response, unsafe_allow_html=True)  # Affiche la réponse complète
+        st.write(resultat)
         # Mise à jour de l'historique
         st.session_state.messages.append({"role": "assistant", "content": full_response})
