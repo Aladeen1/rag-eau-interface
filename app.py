@@ -1,11 +1,13 @@
 from typing import List, Dict, Any
 import time
 
+from gcloud import storage
+
 from mistralai import Mistral, UserMessage
 import psycopg2
 import streamlit as st
 
-from s3_client import upload_to_minio
+from s3_client import upload_to_gcloud
 from utils import retrieve_context, vectorize_query, format_chunks_with_bullets, system_prompt
 
 db_connection_string = st.secrets['SUPABASE_PG_URL']
@@ -69,10 +71,12 @@ if prompt := st.chat_input("Besoin de renseignement ?"):
 # Interface Streamlit pour drag and drop
 uploaded_file = st.file_uploader("Glissez et déposez votre fichier", type=["pdf"])
 
+
     # Si un fichier est téléchargé
 if uploaded_file is not None:
     st.write(f"Fichier téléchargé : {uploaded_file.name}")
     # Affiche un bouton pour valider l'upload
-    if st.button("Valider l'upload sur MinIO"):
-        # Appel de la fonction pour uploader le fichier sur MinIO
-        file_name = upload_to_minio(uploaded_file)
+    if st.button("Valider l'upload"):
+        # Appel de la fonction pour uploader le fichier sur gcloud
+        file_name=upload_to_gcloud(uploaded_file,bucket_name=st.secrets["bucket_name_gcloud"])
+        st.write(file_name)

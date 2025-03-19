@@ -1,4 +1,5 @@
 import io
+from google.cloud import storage
 
 from minio import Minio
 import streamlit as st
@@ -12,7 +13,7 @@ minio_client = Minio(
 )
 
 # Nom du bucket sur MinIO
-bucket_name = st.secrets["MINIO_BUCKET_NAME"]
+bucket_name = 'st.secrets["MINIO_BUCKET_NAME"]'
 
 def upload_to_minio(file):
     # Lire le contenu du fichier téléchargé
@@ -35,3 +36,25 @@ def upload_to_minio(file):
         st.success(f"Fichier {file_name} téléchargé avec succès sur MinIO.")
     except Exception as e:
         st.error(f"Erreur lors de l'upload sur MinIO: {e}")
+
+
+def upload_to_gcloud(file, bucket_name):
+
+    # Créez un client de stockage Google Cloud
+    client = storage.Client()
+
+    # Récupère le bucket
+    bucket = client.get_bucket(bucket_name)
+
+    # Crée un objet blob dans le bucket (le fichier sera enregistré sous ce nom)
+    blob = bucket.blob(file.name)
+
+    # Crée un flux en mémoire avec le contenu du fichier téléchargé
+    file_content = file.read()
+    file_stream = io.BytesIO(file_content)
+
+    # Upload le fichier vers le bucket Google Cloud Storage
+    blob.upload_from_file(file_stream)
+
+    # Retourner un message de confirmation
+    return f"Fichier '{file.name}' téléchargé avec succès vers gs://{bucket_name}/{file.name}"
