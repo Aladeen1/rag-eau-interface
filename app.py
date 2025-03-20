@@ -1,6 +1,8 @@
 from typing import List, Dict, Any
 import time
 
+import toml
+
 from mistralai import Mistral, UserMessage
 import psycopg2
 import streamlit as st
@@ -16,7 +18,34 @@ db_connection_string = st.secrets['SUPABASE_PG_URL']
 supabase_document_table = st.secrets['SUPABASE_TABLE']
 conn = psycopg2.connect(db_connection_string)
 
-st.title("Le Ragueauteur")
+# Charger la configuration depuis le fichier TOML
+config = toml.load(".streamlit/config.toml")
+favicon_path = config['ui']['favicon']  # Récupère le chemin du logo
+
+# Configuration de la page Streamlit (favicon, couleurs, etc.)
+st.set_page_config(
+    page_title="Rag Eau",  # Titre de votre application
+    page_icon=favicon_path,  # Favicon (chemin vers le logo)
+    layout="centered",  # Centrer le layout
+    initial_sidebar_state="expanded"  # Par défaut, la barre latérale est ouverte
+)
+
+# Utilisation de st.markdown pour appliquer du CSS personnalisé
+st.markdown(
+    """
+    <style>
+    /* Style pour centrer le titre */
+    .center-title {
+        text-align: center;
+        font-size: 3em;  /* Ajuste la taille du texte si nécessaire */
+        font-weight: bold;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
+
+# Applique la classe CSS au titre
+st.markdown('<div class="center-title">Le Ragueauteur</div>', unsafe_allow_html=True)
 
 st.text("Le Ragueauteur vous permet de poser n'importe quelle question en lien avec le système de gestion des données des eaux souterraines.")
 
@@ -52,7 +81,7 @@ if prompt := st.chat_input("Besoin de renseignement ?"):
 
     # Call Mistral API
     # Dans votre section de traitement de la réponse
-    with st.chat_message("assistant", avatar="images/logoRageau.jpg"):
+    with st.chat_message("assistant", avatar=favicon_path):
         stream_response = client.chat.stream(
             model=st.session_state["mistral_model"],
             messages=messages,
