@@ -5,7 +5,11 @@ from mistralai import Mistral, UserMessage
 import psycopg2
 import streamlit as st
 
-from utils import retrieve_context, vectorize_query, format_chunks_with_bullets, system_prompt
+from utils import (retrieve_context,
+                   vectorize_query,
+                   format_chunks_with_bullets,
+                   system_prompt,
+                   parse_mistral_response)
 
 db_connection_string = st.secrets['SUPABASE_PG_URL']
 supabase_document_table = st.secrets['SUPABASE_TABLE']
@@ -31,7 +35,6 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-
 # User input
 if prompt := st.chat_input("Besoin de renseignement ?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -47,19 +50,50 @@ if prompt := st.chat_input("Besoin de renseignement ?"):
     messages = [system_message] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
 
     # Call Mistral API
+    # Dans votre section de traitement de la réponse
     with st.chat_message("assistant", avatar="images/logoRageau.jpg"):
         stream_response = client.chat.stream(
             model=st.session_state["mistral_model"],
             messages=messages,
         )
         full_response = ""
-        placeholder = st.empty()  # Crée un espace réservé pour la réponse
+        placeholder = st.empty()
         for chunk in stream_response:
             content = chunk.data.choices[0].delta.content
             if content:
                 full_response += content
-                placeholder.markdown(full_response + "▌", unsafe_allow_html=True)  # Affiche la réponse partielle
-                time.sleep(0.05)  # Petite pause pour rendre l'affichage plus naturel
-        placeholder.markdown(full_response, unsafe_allow_html=True)  # Affiche la réponse complète
+                placeholder.markdown(full_response + "▌", unsafe_allow_html=True)
+                time.sleep(0.05)
 
+        # Approche simplifiée: vérifier simplement si des marqueurs de structure sont présents
+        has_structure = "RESUME:" in full_response and "DEVELOPPEMENT:" in full_response
+
+        if has_structure:
+            # Effacer le placeholder
+            placeholder.empty()
+
+            # Parser la réponse
+            parsed_response = parse_mistral_response(full_response)
+
+            # Afficher formaté
+            st.markdown("## :pushpin: Résumé")
+            st.markdown(f"\n{parsed_response.resume}\n")
+
+            st.markdown("---")
+
+            st.markdown("## :books: Développement")
+            st.markdown(parsed_response.developpement)
+
+            if parsed_response.references:
+                st.markdown("## :bookmark: Références")
+                for i, ref in enumerate(parsed_response.references, 1):
+                    st.markdown(f"**[{i}]** {ref}")
+
+            with st.expander("ℹ️ Informations complémentaires"):
+                st.markdown("Les réponses fournies par le modèle sont basées sur une partie de la documentation d'ADES.")
+        else:
+            # Laisser la réponse telle quelle
+            placeholder.markdown(full_response, unsafe_allow_html=True)
+
+    # Ajouter à l'historique
     st.session_state.messages.append({"role": "assistant", "content": full_response})

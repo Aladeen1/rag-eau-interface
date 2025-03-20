@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 
 import psycopg2
 from mistralai import Mistral
+from pydantic import BaseModel
 
 def vectorize_query(query: str, client: Mistral) -> List[float]:
     """
@@ -70,9 +71,18 @@ system_prompt = """
     </traitement_contexte>
 
     <structure_réponse>
-    Commencez par une <réponse_directe> à la question posée.
-    Ajoutez des <détails> précis pour répondre au mieux à la demande utilisateur.
-    Terminez par des <références> aux sections pertinentes de la documentation si disponibles.
+    Pour faciliter l'affichage, structure ta réponse avec ces sections clairement identifiées:
+
+    RESUME:
+    Ecris un résumé répondant au mieux à la query initiale. Soit clair et concis (2/3 phrases maximum)
+
+    DEVELOPPEMENT:
+    Ecris un développement structuré et détaillé répondant au mieux a la <query>, appuie toi au maximum sur le <context> et ton analyse.
+
+    REFERENCES:
+    [Liste des sources utilisées]
+    Pour les questions conversationnelles simples (salutations, remerciements, questions sur l'historique de la conversation),
+    répondez de manière naturelle sans utiliser cette structure.
     </structure_réponse>
 """
 def format_chunks_with_bullets(chunks, prompt=""):
@@ -110,3 +120,45 @@ def format_chunks_with_bullets(chunks, prompt=""):
                 formatted_text += "\n"
 
     return formatted_text
+
+#Class pour Output structuré de Mistral
+class MistralOutput(BaseModel):
+    resume: str
+    developpement: str
+    references: List[str] = []
+
+#Parsing de la réponse Mistral:
+def parse_mistral_response(text: str) -> MistralOutput:
+    # Valeurs par défaut
+    resume = ""
+    developpement = ""
+    references = []
+
+    # Séparation simple par sections
+    if "RESUME:" in text:
+        parts = text.split("RESUME:", 1)
+        remaining = parts[1].strip()
+
+        if "DEVELOPPEMENT:" in remaining:
+            resume_parts = remaining.split("DEVELOPPEMENT:", 1)
+            resume = resume_parts[0].strip()
+            remaining = resume_parts[1].strip()
+
+            if "REFERENCES:" in remaining:
+                dev_parts = remaining.split("REFERENCES:", 1)
+                developpement = dev_parts[0].strip()
+                refs_text = dev_parts[1].strip()
+                references = [ref.strip() for ref in refs_text.split("\n") if ref.strip()]
+            else:
+                developpement = remaining
+        else:
+            resume = remaining
+    else:
+        # Si le format n'est pas respecté, on met tout dans développement
+        developpement = text
+
+    return MistralOutput(
+        resume=resume if resume else "Pas de résumé disponible",
+        developpement=developpement,
+        references=references
+    )
