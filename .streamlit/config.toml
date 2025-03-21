@@ -1,8 +1,8 @@
 [theme]
-primaryColor = "#000000"  # Couleur principale, à adapter selon vos préférences
-backgroundColor = "#FFFFFF"  # Couleur de fond, à adapter
-secondaryBackgroundColor = "#FFFFFF"  # Couleur secondaire
-textColor = "#000000"  # Couleur du texte
+primaryColor = "#FFFFFF"  # Couleur principale, à adapter selon vos préférences
+backgroundColor = "#000000"  # Couleur de fond, à adapter
+secondaryBackgroundColor = "#000000"  # Couleur secondaire
+textColor = "#FFFFFF"  # Couleur du texte
 
 [browser]
 gatherUsageStats = false
